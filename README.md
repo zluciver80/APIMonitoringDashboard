@@ -1,1 +1,1 @@
-# APIMonitoringDashboard
+APIMonitoringDashboard is a Go application designed to provide a comprehensive monitoring solution for APIs. It serves as the central hub for tracking API performance, availability, and response times. The application initializes the server, configures routes, and sets up a user-friendly dashboard for live monitoring and reporting. This project aims to simplify API management and enhance reliability through real-time data and analytics.
