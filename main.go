@@ -9,14 +9,21 @@ import (
     "github.com/joho/godotenv"
 )
 
-func homePage(w http.ResponseWriter, r *http.Request) {
+func serveHomePage(w http.ResponseWriter, r *http.Request) {
     fmt.Fprintf(w, "Welcome to the HomePage!")
-    fmt.Println("Endpoint Hit: homePage")
+    fmt.Println("Endpoint Hit: HomePage")
 }
 
-func handleRequests() {
-    http.HandleFunc("/", homePage)
-    log.Fatal(http.ListenAndServe(":8080", nil))
+func initializeServer() {
+    portEnv := os.Getenv("PORT")
+    if portEnv == "" {
+        portEnv = "8080"
+    }
+
+    serverAddress := ":" + portEnv
+    http.HandleFunc("/", serveHomePage)
+    log.Printf("Starting server on port %s\n", portEnv)
+    log.Fatal(http.ListenAndServe(serverAddress, nil))
 }
 
 func main() {
@@ -25,11 +32,5 @@ func main() {
         log.Fatal("Error loading .env file")
     }
 
-    port := os.Getenv("PORT")
-    if port == "" {
-        port = "8080"
-    }
-
-    fmt.Printf("Starting server on port %s\n", port)
-    handleRequests()
+    initializeServer()
 }
