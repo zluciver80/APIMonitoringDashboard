@@ -5,7 +5,23 @@ import (
     "log"
     "net/http"
     "os"
+    "sync"
 )
+
+var (
+    lock sync.RWMutex
+    monitoringDataCache map[string]interface{}
+)
+
+func init() {
+    data := os.Getenv("MONITORING_DATA")
+    if data != "" {
+        json.Unmarshal([]byte(data), &monitoringDataCache)
+    }
+    if monitoringDataCache == nil {
+        monitoringDataCache = make(map[string]interface{})
+    }
+}
 
 func HandleHealthCheck(w http.ResponseWriter, r *http.Request) {
     response := map[string]string{"message": "Everything is OK!"}
@@ -13,13 +29,15 @@ func HandleHealthCheck(w http.ResponseWriter, r *http.Request) {
 }
 
 func RetrieveMonitoringData(w http.ResponseWriter, r *http.Request) {
-    data := os.Getenv("MONITORING_DATA")
-    if data == "" {
+    lock.RLock()
+    defer lock.RUnlock()
+  
+    if monitoringDataCache == nil {
         http.Error(w, "No monitoring data available", http.StatusNotFound)
         return
     }
     w.Header().Set("Content-Type", "application/json")
-    w.Write([]byte(data))
+    json.NewEncoder(w).Encode(monitoringDataCache)
 }
 
 func UpdateMonitoringData(w http.ResponseWriter, r *http.Request) {
@@ -29,13 +47,17 @@ func UpdateMonitoringData(w http.ResponseWriter, r *http.Request) {
         return
     }
 
+    lock.Lock()
+    monitoringDataCache = newData
+    lock.Unlock()
+    
     updatedDataJSON, err := json.Marshal(newData)
     if err != nil {
         http.Error(w, "Failed to update monitoring data", http.StatusInternalServerError)
         return
     }
-
     os.Setenv("MONITORING_DATA", string(updatedDataJSON))
+    
     w.WriteHeader(http.StatusOK)
     json.NewEncoder(w).Encode(newData)
 }
