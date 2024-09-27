@@ -36,6 +36,26 @@ func (m *Metrics) Collect(path string, responseTime time.Duration, status int) {
 	m.throughputs[path]++
 }
 
+func (m *Metrics) LogMetrics(interval time.Duration) {
+	go func() {
+		for {
+			<-time.After(interval)
+
+			m.mu.RLock()
+			defer m.mu.RUnlock()
+
+			for path, times := range m.responseTime {
+				var totalDuration time.Duration
+				for _, t := range times {
+					totalDuration += t
+				}
+				avgDuration := totalDuration / time.Duration(len(times))
+				log.Printf("Path: %s - Avg Response Time: %v, Errors: %d, Throughputs: %d\n", path, avgDuration, m.errors[path], m.throughputs[path])
+			}
+		}
+	}()
+}
+
 func (m *Metrics) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
@@ -76,6 +96,8 @@ func main() {
 	}
 
 	metrics := InitializeMetrics()
+	// Log metrics every 5 minutes
+	metrics.LogMetrics(5 * time.Minute)
 
 	http.Handle("/", metrics.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
