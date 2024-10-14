@@ -42,16 +42,18 @@ func (m *Metrics) LogMetrics(interval time.Duration) {
 			<-time.After(interval)
 
 			m.mu.RLock()
-			defer m.mu.RUnlock()
+			func() {
+				defer m.mu.RUnlock()
 
-			for path, times := range m.responseTime {
-				var totalDuration time.Duration
-				for _, t := range times {
-					totalDuration += t
+				for path, times := range m.responseTime {
+					var totalDuration time.Duration
+					for _, t := range times {
+						totalDuration += t
+					}
+					avgDuration := totalDuration / time.Duration(len(times))
+					log.Printf("Path: %s - Avg Response Time: %v, Errors: %d, Throughputs: %d\n", path, avgDuration, m.errors[path], m.throughputs[path])
 				}
-				avgDuration := totalDuration / time.Duration(len(times))
-				log.Printf("Path: %s - Avg Response Time: %v, Errors: %d, Throughputs: %d\n", path, avgDuration, m.errors[path], m.throughputs[path])
-			}
+			}()
 		}
 	}()
 }
@@ -64,6 +66,11 @@ func (m *Metrics) Middleware(next http.Handler) http.Handler {
 		next.ServeHTTP(ww, r)
 
 		duration := time.Since(start)
+
+		if !ww.wroteHeader {
+			ww.status = http.StatusOK
+		}
+
 		m.Collect(r.URL.Path, duration, ww.status)
 	})
 }
@@ -96,12 +103,13 @@ func main() {
 	}
 
 	metrics := InitializeMetrics()
-	// Log metrics every 5 minutes
 	metrics.LogMetrics(5 * time.Minute)
 
 	http.Handle("/", metrics.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("Hello, world!"))
+		_, err := w.Write([]byte("Hello, world!"))
+		if err != nil {
+			log.Printf("Error writing response: %v", err)
+		}
 	})))
 
 	log.Printf("Starting server on port %s...", port)
